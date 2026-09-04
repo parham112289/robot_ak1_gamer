@@ -406,15 +406,63 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
   }
 
   Future<void> _configureWifi() async {
-    final ssid = await _textDialog('نام Wi-Fi ربات', 'SSID را وارد کن');
-    if (ssid == null || ssid.trim().isEmpty) return;
-    final password = await _textDialog('رمز Wi-Fi', 'رمز شبکه را وارد کن', obscure: true);
-    if (password == null) return;
-    await _postRobot('/wifi/config', {'ssid': ssid.trim(), 'password': password});
+    final result = await _wifiDialog();
+    if (result == null) return;
+    await _postRobot('/wifi/config', result);
   }
 
-  Future<void> _toggleRobotBluetooth() async {
-    await _postRobot('/bluetooth/config', {'enabled': true});
+  Future<void> _configureBluetooth() async {
+    final result = await _bluetoothDialog();
+    if (result == null) return;
+    await _postRobot('/bluetooth/config', result);
+  }
+
+  Future<Map<String, dynamic>?> _wifiDialog() async {
+    final ssidController = TextEditingController();
+    final passwordController = TextEditingController();
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('تنظیم Wi-Fi خود ربات'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: ssidController, decoration: const InputDecoration(labelText: 'نام شبکه (SSID)', hintText: 'Wi-Fi خانه')),
+          const SizedBox(height: 12),
+          TextField(controller: passwordController, obscureText: true, decoration: const InputDecoration(labelText: 'رمز Wi-Fi')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')),
+          FilledButton(onPressed: () {
+            final ssid = ssidController.text.trim();
+            if (ssid.isEmpty) return;
+            Navigator.pop(context, {'ssid': ssid, 'password': passwordController.text});
+          }, child: const Text('اتصال ربات')),
+        ],
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>?> _bluetoothDialog() async {
+    bool enabled = _robotBluetooth.toLowerCase().contains('on') || _robotBluetooth.contains('فعال');
+    final nameController = TextEditingController(text: 'AK-1');
+    return showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Bluetooth خود ربات'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Bluetooth روشن باشد'), value: enabled, onChanged: (v) => setDialogState(() => enabled = v)),
+            const SizedBox(height: 8),
+            TextField(controller: nameController, decoration: const InputDecoration(labelText: 'نام Bluetooth', hintText: 'AK-1')),
+            const SizedBox(height: 8),
+            const Text('این تنظیم برای Bluetooth خود ESP32-CAM است، نه Bluetooth گوشی.', style: TextStyle(fontSize: 12, color: Colors.white60)),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('لغو')),
+            FilledButton(onPressed: () => Navigator.pop(dialogContext, {'enabled': enabled, 'name': nameController.text.trim().isEmpty ? 'AK-1' : nameController.text.trim()}), child: const Text('ذخیره')),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _postRobot(String path, Map<String, dynamic> payload) async {
@@ -483,7 +531,7 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
             ]))),
             Card(child: ListTile(leading: const Icon(Icons.battery_full_rounded), title: const Text('باتری ربات'), trailing: Text('$_robotBattery%'))),
             Card(child: ListTile(leading: const Icon(Icons.wifi_rounded), title: const Text('Wi-Fi ربات'), subtitle: Text(_robotWifi), trailing: FilledButton(onPressed: _configureWifi, child: const Text('تنظیم')))),
-            Card(child: ListTile(leading: const Icon(Icons.bluetooth_rounded), title: const Text('Bluetooth ربات'), subtitle: Text(_robotBluetooth), trailing: FilledButton(onPressed: _toggleRobotBluetooth, child: const Text('تنظیم')))),
+            Card(child: ListTile(leading: const Icon(Icons.bluetooth_rounded), title: const Text('Bluetooth ربات'), subtitle: Text(_robotBluetooth), trailing: FilledButton(onPressed: _configureBluetooth, child: const Text('تنظیم')))),
             const SizedBox(height: 8),
             const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('هدف این بخش: انتخاب شبکه Wi-Fi موردنظر برای خود ربات و مدیریت Bluetooth خود ESP32-CAM. در مرحله Firmware، API های /status، /wifi/config و /bluetooth/config را روی ربات پیاده می‌کنیم.'))),
           ],
