@@ -7,6 +7,7 @@ import 'package:battery_plus/battery_plus.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 void main() {
   runApp(const RobotAk1App());
@@ -67,7 +68,14 @@ class DashboardPage extends StatelessWidget {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('ربات AK-1'),
+          titleSpacing: 20,
+          title: const Row(
+            children: [
+              _AkLogo(size: 38),
+              SizedBox(width: 10),
+              Text('AK-1', style: TextStyle(fontWeight: FontWeight.w800)),
+            ],
+          ),
           actions: [
             IconButton(
               tooltip: 'بازی هوشمند',
@@ -77,28 +85,32 @@ class DashboardPage extends StatelessWidget {
               ),
               icon: const Icon(Icons.sports_esports_outlined),
             ),
+            const SizedBox(width: 8),
           ],
         ),
         body: ListView(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
           children: [
-            _statusCard(),
+            _welcomeCard(context),
             const SizedBox(height: 16),
+            _sectionTitle('کنترل و امکانات اصلی', 'همه چیز را از اینجا مدیریت کن'),
+            const SizedBox(height: 10),
             _menuCard(
               context,
-              icon: Icons.videocam_outlined,
-              title: '📱 دوربین گوشی / PS4',
-              subtitle: 'نمایش مانیتور و آماده‌سازی تحلیل بازی',
+              icon: Icons.record_voice_over_rounded,
+              title: 'دستور به ربات',
+              subtitle: 'دستور متنی یا صوتی با میکروفون گوشی و ربات',
+              badge: 'AI',
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const CameraPage()),
+                MaterialPageRoute(builder: (_) => const AssistantPage()),
               ),
             ),
             _menuCard(
               context,
               icon: Icons.memory_rounded,
-              title: '📷 دوربین ESP32-CAM',
-              subtitle: 'نمایش تصویر زنده دوربین روی برد',
+              title: 'دوربین ربات',
+              subtitle: 'تصویر زنده از AI-Thinker ESP32-CAM',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const Esp32CamPage()),
@@ -107,8 +119,8 @@ class DashboardPage extends StatelessWidget {
             _menuCard(
               context,
               icon: Icons.settings_input_antenna_rounded,
-              title: '📡 اتصال‌ها و باتری',
-              subtitle: 'درصد باتری، Wi-Fi و Bluetooth',
+              title: 'اتصال و وضعیت ربات',
+              subtitle: 'باتری ربات، Wi-Fi و Bluetooth خود ربات',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ConnectivityPage()),
@@ -116,29 +128,32 @@ class DashboardPage extends StatelessWidget {
             ),
             _menuCard(
               context,
+              icon: Icons.videocam_outlined,
+              title: 'دوربین گوشی / PS4',
+              subtitle: 'نمایش مانیتور و آماده‌سازی تحلیل بازی',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CameraPage()),
+              ),
+            ),
+            _menuCard(
+              context,
               icon: Icons.sports_esports_outlined,
               title: 'بازی هوشمند',
-              subtitle: 'AI برای تحلیل بازی و اجرای تصمیم‌ها',
+              subtitle: 'تحلیل بازی و تصمیم‌گیری با AI',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const GamingPage()),
               ),
             ),
-            _menuCard(
-              context,
-              icon: Icons.smart_toy_outlined,
-              title: 'دستیار هوشمند',
-              subtitle: 'فرمان صوتی و مدیریت هدف‌ها',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AssistantPage()),
-              ),
-            ),
+            const SizedBox(height: 8),
+            _sectionTitle('ابزارهای جانبی', 'امکانات بیشتر AK-1'),
+            const SizedBox(height: 10),
             _menuCard(
               context,
               icon: Icons.laptop_mac_outlined,
               title: 'کنترل لپتاپ',
-              subtitle: 'اتصال امن، وضعیت سیستم و اجرای کارهای مجاز',
+              subtitle: 'اتصال امن، وضعیت سیستم و کارهای مجاز',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const LaptopPage()),
@@ -146,9 +161,9 @@ class DashboardPage extends StatelessWidget {
             ),
             _menuCard(
               context,
-              icon: Icons.auto_awesome,
+              icon: Icons.auto_awesome_rounded,
               title: 'اتوماسیون هوشمند',
-              subtitle: 'کارهایی که AK-1 می‌تواند به‌صورت خودکار مدیریت کند',
+              subtitle: 'مدیریت کارهایی که AK-1 می‌تواند خودکار انجام دهد',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AutomationPage()),
@@ -160,21 +175,79 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _statusCard() {
+  Widget _welcomeCard(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+            colors: [
+              Theme.of(context).colorScheme.primary.withOpacity(.24),
+              Theme.of(context).colorScheme.surface,
+            ],
+          ),
+          border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(.18)),
+          borderRadius: BorderRadius.circular(22),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text('وضعیت سیستم', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            SizedBox(height: 14),
-            _StatusRow('Cloud', 'آماده', Icons.cloud_done_outlined),
-            _StatusRow('AI Vision', 'آماده', Icons.visibility_outlined),
-            _StatusRow('Robot Core', 'آماده', Icons.memory_outlined),
+          children: [
+            Row(
+              children: [
+                const _AkLogo(size: 54),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text('سلام! من AK-1 هستم', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+                      SizedBox(height: 4),
+                      Text('مرکز کنترل ربات و هوش مصنوعی', style: TextStyle(color: Colors.white70)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(.18),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.circle, size: 10),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('ربات آماده اتصال است')),
+                  Icon(Icons.chevron_left_rounded, size: 20),
+                ],
+              ),
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _sectionTitle(String title, String subtitle) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.white54)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -184,16 +257,83 @@ class DashboardPage extends StatelessWidget {
     required String title,
     required String subtitle,
     required VoidCallback onTap,
+    String? badge,
   }) {
+    final primary = Theme.of(context).colorScheme.primary;
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
+      margin: const EdgeInsets.only(bottom: 11),
+      child: InkWell(
         onTap: onTap,
-        leading: CircleAvatar(child: Icon(icon)),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_left),
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: primary.withOpacity(.14),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(icon, color: primary, size: 27),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(child: Text(title, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700))),
+                        if (badge != null) ...[
+                          const SizedBox(width: 7),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: primary.withOpacity(.16),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(badge, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: primary)),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(subtitle, style: const TextStyle(fontSize: 12.5, color: Colors.white60, height: 1.25)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_left_rounded, color: Colors.white38),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+}
+
+class _AkLogo extends StatelessWidget {
+  final double size;
+  const _AkLogo({required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(size * .28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [primary, primary.withOpacity(.55)],
+        ),
+        boxShadow: [BoxShadow(color: primary.withOpacity(.18), blurRadius: 14)],
+      ),
+      child: Icon(Icons.smart_toy_rounded, size: size * .52),
     );
   }
 }
@@ -221,7 +361,6 @@ class _StatusRow extends StatelessWidget {
   }
 }
 
-
 class ConnectivityPage extends StatefulWidget {
   const ConnectivityPage({super.key});
   @override
@@ -229,60 +368,98 @@ class ConnectivityPage extends StatefulWidget {
 }
 
 class _ConnectivityPageState extends State<ConnectivityPage> {
-  final Battery _battery = Battery();
-  StreamSubscription<BatteryState>? _batterySub;
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
-  int _batteryLevel = 0;
-  String _network = 'در حال بررسی...';
-  String _bluetooth = 'برای وضعیت دقیق، تنظیمات دستگاه را بررسی کنید';
+  final TextEditingController _ipController = TextEditingController(text: '192.168.4.1');
+  int _robotBattery = 0;
+  String _robotWifi = 'نامشخص';
+  String _robotBluetooth = 'نامشخص';
+  bool _loading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _refresh();
-    _batterySub = _battery.onBatteryStateChanged.listen((_) => _refreshBattery());
-    _connectivitySub = Connectivity().onConnectivityChanged.listen((_) => _refreshNetwork());
+  String get _baseUrl {
+    final raw = _ipController.text.trim();
+    if (raw.isEmpty) return '';
+    return raw.startsWith('http://') || raw.startsWith('https://') ? raw : 'http://$raw';
   }
 
-  Future<void> _refresh() async {
-    await _refreshBattery();
-    await _refreshNetwork();
-  }
-
-  Future<void> _refreshBattery() async {
+  Future<void> _readRobotStatus() async {
+    if (_baseUrl.isEmpty) return;
+    setState(() => _loading = true);
     try {
-      final level = await _battery.batteryLevel;
-      if (mounted) setState(() => _batteryLevel = level);
-    } catch (_) {}
-  }
-
-  Future<void> _refreshNetwork() async {
-    try {
-      final results = await Connectivity().checkConnectivity();
+      final client = HttpClient();
+      final request = await client.getUrl(Uri.parse('$_baseUrl/status')).timeout(const Duration(seconds: 4));
+      final response = await request.close().timeout(const Duration(seconds: 4));
+      final body = await utf8.decoder.bind(response).join();
+      client.close();
+      final data = jsonDecode(body) as Map<String, dynamic>;
       if (!mounted) return;
-      final hasWifi = results.contains(ConnectivityResult.wifi);
-      final hasMobile = results.contains(ConnectivityResult.mobile);
-      final hasEthernet = results.contains(ConnectivityResult.ethernet);
       setState(() {
-        _network = hasWifi ? 'Wi-Fi متصل' : hasMobile ? 'اینترنت موبایل متصل' : hasEthernet ? 'Ethernet متصل' : 'آفلاین';
+        _robotBattery = (data['battery'] as num?)?.toInt() ?? _robotBattery;
+        _robotWifi = data['wifi']?.toString() ?? _robotWifi;
+        _robotBluetooth = data['bluetooth']?.toString() ?? _robotBluetooth;
       });
     } catch (_) {
-      if (mounted) setState(() => _network = 'نامشخص');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('وضعیت ربات دریافت نشد. فعلاً Firmware ربات باید API وضعیت را داشته باشد.')));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _openWifi() async {
-    await const AndroidIntent(action: 'android.settings.WIFI_SETTINGS').launch();
+  Future<void> _configureWifi() async {
+    final ssid = await _textDialog('نام Wi-Fi ربات', 'SSID را وارد کن');
+    if (ssid == null || ssid.trim().isEmpty) return;
+    final password = await _textDialog('رمز Wi-Fi', 'رمز شبکه را وارد کن', obscure: true);
+    if (password == null) return;
+    await _postRobot('/wifi/config', {'ssid': ssid.trim(), 'password': password});
   }
 
-  Future<void> _openBluetooth() async {
-    await const AndroidIntent(action: 'android.settings.BLUETOOTH_SETTINGS').launch();
+  Future<void> _toggleRobotBluetooth() async {
+    await _postRobot('/bluetooth/config', {'enabled': true});
+  }
+
+  Future<void> _postRobot(String path, Map<String, dynamic> payload) async {
+    if (_baseUrl.isEmpty) return;
+    try {
+      final client = HttpClient();
+      final request = await client.postUrl(Uri.parse('$_baseUrl$path')).timeout(const Duration(seconds: 4));
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode(payload));
+      final response = await request.close().timeout(const Duration(seconds: 4));
+      client.close();
+      if (!mounted) return;
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('درخواست برای ربات ارسال شد.')));
+        await _readRobotStatus();
+      } else {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ربات پاسخ نداد. این بخش بعد از نصب Firmware ارتباطی روی ESP32-CAM فعال می‌شود.')));
+    }
+  }
+
+  Future<String?> _textDialog(String title, String hint, {bool obscure = false}) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          obscureText: obscure,
+          decoration: InputDecoration(hintText: hint),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('لغو')),
+          FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('ذخیره')),
+        ],
+      ),
+    );
   }
 
   @override
   void dispose() {
-    _batterySub?.cancel();
-    _connectivitySub?.cancel();
+    _ipController.dispose();
     super.dispose();
   }
 
@@ -291,17 +468,24 @@ class _ConnectivityPageState extends State<ConnectivityPage> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('اتصال‌ها و باتری')),
+        appBar: AppBar(title: const Text('اتصال ربات و باتری')),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Card(child: ListTile(leading: const Icon(Icons.battery_full_rounded), title: const Text('باتری گوشی'), trailing: Text('$_batteryLevel%'))),
-            Card(child: ListTile(leading: const Icon(Icons.wifi_rounded), title: const Text('Wi-Fi / اینترنت'), subtitle: Text(_network), trailing: FilledButton(onPressed: _openWifi, child: const Text('تنظیم')))),
-            Card(child: ListTile(leading: const Icon(Icons.bluetooth_rounded), title: const Text('Bluetooth'), subtitle: Text(_bluetooth), trailing: FilledButton(onPressed: _openBluetooth, child: const Text('تنظیم')))),
+            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('این صفحه وضعیت خود ربات را نشان می‌دهد، نه باتری یا Wi-Fi گوشی. ESP32-CAM باید Firmware ارتباطی داشته باشد تا اطلاعات و تنظیمات از اینجا اعمال شود.'))),
             const SizedBox(height: 12),
-            Card(child: Padding(padding: const EdgeInsets.all(16), child: Text('برای انتخاب Wi-Fi دلخواه یا اتصال ایرپاد، AK-1 صفحه تنظیمات رسمی Android را باز می‌کند تا انتخاب و جفت‌سازی توسط خود سیستم انجام شود. برنامه بدون اجازه سیستم، دستگاه Bluetooth یا شبکه را مخفیانه تغییر نمی‌دهد.', textAlign: TextAlign.right))),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(onPressed: _refresh, icon: const Icon(Icons.refresh), label: const Text('به‌روزرسانی وضعیت')),
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              const Text('آدرس ربات', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              TextField(controller: _ipController, keyboardType: TextInputType.url, decoration: const InputDecoration(prefixIcon: Icon(Icons.router), hintText: '192.168.4.1', border: OutlineInputBorder())),
+              const SizedBox(height: 10),
+              FilledButton.icon(onPressed: _loading ? null : _readRobotStatus, icon: const Icon(Icons.link), label: const Text('اتصال و دریافت وضعیت')),
+            ]))),
+            Card(child: ListTile(leading: const Icon(Icons.battery_full_rounded), title: const Text('باتری ربات'), trailing: Text('$_robotBattery%'))),
+            Card(child: ListTile(leading: const Icon(Icons.wifi_rounded), title: const Text('Wi-Fi ربات'), subtitle: Text(_robotWifi), trailing: FilledButton(onPressed: _configureWifi, child: const Text('تنظیم')))),
+            Card(child: ListTile(leading: const Icon(Icons.bluetooth_rounded), title: const Text('Bluetooth ربات'), subtitle: Text(_robotBluetooth), trailing: FilledButton(onPressed: _toggleRobotBluetooth, child: const Text('تنظیم')))),
+            const SizedBox(height: 8),
+            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('هدف این بخش: انتخاب شبکه Wi-Fi موردنظر برای خود ربات و مدیریت Bluetooth خود ESP32-CAM. در مرحله Firmware، API های /status، /wifi/config و /bluetooth/config را روی ربات پیاده می‌کنیم.'))),
           ],
         ),
       ),
@@ -638,41 +822,97 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   }
 }
 
-class AssistantPage extends StatelessWidget {
+class AssistantPage extends StatefulWidget {
   const AssistantPage({super.key});
+  @override
+  State<AssistantPage> createState() => _AssistantPageState();
+}
+
+class _AssistantPageState extends State<AssistantPage> {
+  final TextEditingController _commandController = TextEditingController();
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _listeningPhone = false;
+  String _voiceText = '';
+  String _source = 'گوشی';
+
+  Future<void> _startPhoneVoice() async {
+    final available = await _speech.initialize();
+    if (!available) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('میکروفون/تشخیص گفتار گوشی در دسترس نیست.')));
+      return;
+    }
+    setState(() { _listeningPhone = true; _source = 'گوشی'; });
+    await _speech.listen(
+      localeId: 'fa_IR',
+      onResult: (result) {
+        if (!mounted) return;
+        setState(() {
+          _voiceText = result.recognizedWords;
+          _commandController.text = result.recognizedWords;
+        });
+      },
+    );
+  }
+
+  Future<void> _stopPhoneVoice() async {
+    await _speech.stop();
+    if (mounted) setState(() => _listeningPhone = false);
+  }
+
+  @override
+  void dispose() {
+    _commandController.dispose();
+    _speech.stop();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('دستیار هوشمند')),
-      body: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('دستور به ربات')),
+        body: ListView(
+          padding: const EdgeInsets.all(18),
           children: [
-            const Icon(Icons.mic_none, size: 72),
-            const SizedBox(height: 18),
-            const Text(
-              'فرمان نمونه',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              '«در Elden Ring این باس را برای من شکست بده»',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const GamingPage()),
-              ),
-              icon: const Icon(Icons.sports_esports),
-              label: const Text('باز کردن حالت بازی هوشمند'),
-            ),
+            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('دو مسیر مستقل برای فرمان دادن داریم: ۱) دستور متنی، ۲) دستور صوتی. در حالت صوتی می‌توانیم منبع صدا را گوشی یا میکروفون روی خود ربات انتخاب کنیم.'))),
+            const SizedBox(height: 12),
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              const Text('✍️ دستور متنی', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              TextField(controller: _commandController, minLines: 2, maxLines: 4, decoration: const InputDecoration(hintText: 'مثلاً: وضعیت ربات را بگو', border: OutlineInputBorder())),
+              const SizedBox(height: 10),
+              FilledButton.icon(onPressed: _sendCommand, icon: const Icon(Icons.send), label: const Text('ارسال دستور متنی')),
+            ]))),
+            const SizedBox(height: 12),
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              const Text('🎙️ دستور صوتی', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(segments: const [ButtonSegment(value: 'گوشی', label: Text('میکروفون گوشی'), icon: Icon(Icons.phone_android)), ButtonSegment(value: 'ربات', label: Text('میکروفون ربات'), icon: Icon(Icons.mic_external_on))], selected: {_source}, onSelectionChanged: (v) => setState(() => _source = v.first)),
+              const SizedBox(height: 14),
+              if (_source == 'گوشی')
+                FilledButton.icon(onPressed: _listeningPhone ? _stopPhoneVoice : _startPhoneVoice, icon: Icon(_listeningPhone ? Icons.stop : Icons.mic), label: Text(_listeningPhone ? 'توقف شنیدن' : 'شروع فرمان صوتی گوشی'))
+              else
+                FilledButton.icon(onPressed: _robotMicInfo, icon: const Icon(Icons.mic_external_on), label: const Text('فعال‌سازی میکروفون ربات')),
+              const SizedBox(height: 10),
+              if (_voiceText.isNotEmpty) Text('متن تشخیص‌داده‌شده: $_voiceText'),
+            ]))),
+            const SizedBox(height: 12),
+            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('میکروفون ربات هنوز باید به ESP32-CAM اضافه و در Firmware پیاده‌سازی شود. برای این بخش یک میکروفون خارجی مناسب لازم است؛ بعد صدا از ربات به AK-1/Cloud فرستاده می‌شود.'))),
           ],
         ),
       ),
     );
+  }
+
+  void _sendCommand() {
+    final text = _commandController.text.trim();
+    if (text.isEmpty) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('دستور ثبت شد: $text')));
+  }
+
+  void _robotMicInfo() {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('بعد از اتصال میکروفون به ESP32-CAM، این دکمه به مسیر صدای ربات وصل می‌شود.')));
   }
 }
 

@@ -39,6 +39,7 @@ dependencies:
   connectivity_plus: ^6.1.4
   android_intent_plus: ^5.3.1
   webview_flutter: ^4.10.2
+  speech_to_text: ^7.0.0
 
 dev_dependencies:
   flutter_test:
