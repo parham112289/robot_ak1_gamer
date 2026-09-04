@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:battery_plus/battery_plus.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:android_intent_plus/android_intent.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 void main() {
   runApp(const RobotAk1App());
@@ -83,11 +87,31 @@ class DashboardPage extends StatelessWidget {
             _menuCard(
               context,
               icon: Icons.videocam_outlined,
-              title: 'تصویر زنده',
-              subtitle: 'نمایش تصویر دوربین گوشی',
+              title: '📱 دوربین گوشی / PS4',
+              subtitle: 'نمایش مانیتور و آماده‌سازی تحلیل بازی',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const CameraPage()),
+              ),
+            ),
+            _menuCard(
+              context,
+              icon: Icons.memory_rounded,
+              title: '📷 دوربین ESP32-CAM',
+              subtitle: 'نمایش تصویر زنده دوربین روی برد',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const Esp32CamPage()),
+              ),
+            ),
+            _menuCard(
+              context,
+              icon: Icons.settings_input_antenna_rounded,
+              title: '📡 اتصال‌ها و باتری',
+              subtitle: 'درصد باتری، Wi-Fi و Bluetooth',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ConnectivityPage()),
               ),
             ),
             _menuCard(
@@ -192,6 +216,141 @@ class _StatusRow extends StatelessWidget {
           Expanded(child: Text(title)),
           Text(status),
         ],
+      ),
+    );
+  }
+}
+
+
+class ConnectivityPage extends StatefulWidget {
+  const ConnectivityPage({super.key});
+  @override
+  State<ConnectivityPage> createState() => _ConnectivityPageState();
+}
+
+class _ConnectivityPageState extends State<ConnectivityPage> {
+  final Battery _battery = Battery();
+  StreamSubscription<BatteryState>? _batterySub;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  int _batteryLevel = 0;
+  String _network = 'در حال بررسی...';
+  String _bluetooth = 'برای وضعیت دقیق، تنظیمات دستگاه را بررسی کنید';
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+    _batterySub = _battery.onBatteryStateChanged.listen((_) => _refreshBattery());
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((_) => _refreshNetwork());
+  }
+
+  Future<void> _refresh() async {
+    await _refreshBattery();
+    await _refreshNetwork();
+  }
+
+  Future<void> _refreshBattery() async {
+    try {
+      final level = await _battery.batteryLevel;
+      if (mounted) setState(() => _batteryLevel = level);
+    } catch (_) {}
+  }
+
+  Future<void> _refreshNetwork() async {
+    try {
+      final results = await Connectivity().checkConnectivity();
+      if (!mounted) return;
+      final hasWifi = results.contains(ConnectivityResult.wifi);
+      final hasMobile = results.contains(ConnectivityResult.mobile);
+      final hasEthernet = results.contains(ConnectivityResult.ethernet);
+      setState(() {
+        _network = hasWifi ? 'Wi-Fi متصل' : hasMobile ? 'اینترنت موبایل متصل' : hasEthernet ? 'Ethernet متصل' : 'آفلاین';
+      });
+    } catch (_) {
+      if (mounted) setState(() => _network = 'نامشخص');
+    }
+  }
+
+  Future<void> _openWifi() async {
+    await const AndroidIntent(action: 'android.settings.WIFI_SETTINGS').launch();
+  }
+
+  Future<void> _openBluetooth() async {
+    await const AndroidIntent(action: 'android.settings.BLUETOOTH_SETTINGS').launch();
+  }
+
+  @override
+  void dispose() {
+    _batterySub?.cancel();
+    _connectivitySub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('اتصال‌ها و باتری')),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(child: ListTile(leading: const Icon(Icons.battery_full_rounded), title: const Text('باتری گوشی'), trailing: Text('$_batteryLevel%'))),
+            Card(child: ListTile(leading: const Icon(Icons.wifi_rounded), title: const Text('Wi-Fi / اینترنت'), subtitle: Text(_network), trailing: FilledButton(onPressed: _openWifi, child: const Text('تنظیم')))),
+            Card(child: ListTile(leading: const Icon(Icons.bluetooth_rounded), title: const Text('Bluetooth'), subtitle: Text(_bluetooth), trailing: FilledButton(onPressed: _openBluetooth, child: const Text('تنظیم')))),
+            const SizedBox(height: 12),
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Text('برای انتخاب Wi-Fi دلخواه یا اتصال ایرپاد، AK-1 صفحه تنظیمات رسمی Android را باز می‌کند تا انتخاب و جفت‌سازی توسط خود سیستم انجام شود. برنامه بدون اجازه سیستم، دستگاه Bluetooth یا شبکه را مخفیانه تغییر نمی‌دهد.', textAlign: TextAlign.right))),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(onPressed: _refresh, icon: const Icon(Icons.refresh), label: const Text('به‌روزرسانی وضعیت')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class Esp32CamPage extends StatefulWidget {
+  const Esp32CamPage({super.key});
+  @override
+  State<Esp32CamPage> createState() => _Esp32CamPageState();
+}
+
+class _Esp32CamPageState extends State<Esp32CamPage> {
+  final TextEditingController _ipController = TextEditingController(text: '192.168.4.1');
+  WebViewController? _webController;
+  bool _loading = false;
+
+  void _connect() {
+    final raw = _ipController.text.trim();
+    if (raw.isEmpty) return;
+    final url = raw.startsWith('http://') || raw.startsWith('https://') ? raw : 'http://$raw';
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(NavigationDelegate(onPageStarted: (_) => setState(() => _loading = true), onPageFinished: (_) => setState(() => _loading = false), onWebResourceError: (_) => setState(() => _loading = false)))
+      ..loadRequest(Uri.parse(url));
+    setState(() => _webController = controller);
+  }
+
+  @override
+  void dispose() {
+    _ipController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('دوربین ESP32-CAM')),
+        body: Column(
+          children: [
+            Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: TextField(controller: _ipController, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'آدرس IP دوربین', hintText: 'مثلاً 192.168.4.1', border: OutlineInputBorder()))),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), child: SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: _connect, icon: const Icon(Icons.link), label: const Text('اتصال به ESP32-CAM')))),
+            if (_loading) const LinearProgressIndicator(),
+            Expanded(child: _webController == null ? const Center(child: Text('IP دوربین را وارد کنید و اتصال را بزنید.\nESP32-CAM و گوشی باید روی یک شبکه باشند.', textAlign: TextAlign.center)) : WebViewWidget(controller: _webController!)),
+          ],
+        ),
       ),
     );
   }
