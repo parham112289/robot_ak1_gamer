@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
 
 void main() {
   runApp(const RobotAk1App());
@@ -203,114 +204,274 @@ class CameraPage extends StatefulWidget {
   State<CameraPage> createState() => _CameraPageState();
 }
 
-class _CameraPageState extends State<CameraPage> {
-  bool live = false;
-  bool ambientAudio = true;
-  String audioSource = 'میکروفون گوشی';
-  double volume = 0.75;
+class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
+  CameraController? _controller;
+  List<CameraDescription> _cameras = <CameraDescription>[];
+  int _selectedCamera = 0;
+  bool _initializing = true;
+  String? _error;
+  bool _audioEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _initializeCameras();
+  }
+
+  Future<void> _initializeCameras({bool preserveSelection = false}) async {
+    if (mounted) {
+      setState(() {
+        _initializing = true;
+        _error = null;
+      });
+    }
+
+    try {
+      _cameras = await availableCameras();
+      if (_cameras.isEmpty) {
+        throw CameraException('NoCamera', 'هیچ دوربینی روی دستگاه پیدا نشد.');
+      }
+      if (!preserveSelection) {
+        _selectedCamera = 0;
+      } else if (_selectedCamera >= _cameras.length) {
+        _selectedCamera = 0;
+      }
+      await _startController(_selectedCamera);
+    } on CameraException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = _cameraErrorMessage(e);
+          _initializing = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'راه‌اندازی دوربین ناموفق بود: $e';
+          _initializing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _startController(int index) async {
+    final oldController = _controller;
+    _controller = null;
+    await oldController?.dispose();
+
+    final controller = CameraController(
+      _cameras[index],
+      ResolutionPreset.high,
+      enableAudio: _audioEnabled,
+      imageFormatGroup: ImageFormatGroup.yuv420,
+    );
+
+    try {
+      await controller.initialize();
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      setState(() {
+        _controller = controller;
+        _initializing = false;
+        _error = null;
+      });
+    } on CameraException {
+      await controller.dispose();
+      rethrow;
+    }
+  }
+
+  String _cameraErrorMessage(CameraException e) {
+    switch (e.code) {
+      case 'CameraAccessDenied':
+        return 'دسترسی دوربین رد شده است. از تنظیمات گوشی، اجازه دوربین را برای AK-1 فعال کن.';
+      case 'AudioAccessDenied':
+        return 'دسترسی میکروفون رد شده است. اگر صدای محیط را می‌خواهی، اجازه میکروفون را فعال کن.';
+      case 'CameraAccessRestricted':
+        return 'دسترسی به دوربین توسط دستگاه محدود شده است.';
+      default:
+        return 'خطای دوربین: ${e.description ?? e.code}';
+    }
+  }
+
+  Future<void> _switchCamera() async {
+    if (_cameras.length < 2 || _initializing) return;
+    setState(() => _initializing = true);
+    _selectedCamera = (_selectedCamera + 1) % _cameras.length;
+    try {
+      await _startController(_selectedCamera);
+    } on CameraException catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = _cameraErrorMessage(e);
+          _initializing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleAudio() async {
+    if (_initializing || _cameras.isEmpty) return;
+    final next = !_audioEnabled;
+    setState(() {
+      _audioEnabled = next;
+      _initializing = true;
+    });
+    try {
+      await _startController(_selectedCamera);
+    } on CameraException catch (e) {
+      if (mounted) {
+        setState(() {
+          _audioEnabled = !next;
+          _error = _cameraErrorMessage(e);
+          _initializing = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      controller.dispose();
+      _controller = null;
+    } else if (state == AppLifecycleState.resumed && _cameras.isNotEmpty) {
+      _startController(_selectedCamera).catchError((Object error) {
+        if (mounted) {
+          setState(() {
+            _error = error is CameraException
+                ? _cameraErrorMessage(error)
+                : 'بازگشت دوربین ناموفق بود.';
+            _initializing = false;
+          });
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final controller = _controller;
+    final ready = controller != null && controller.value.isInitialized;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('تصویر زنده + صدای محیط')),
+      appBar: AppBar(
+        title: const Text('دوربین زنده AK-1'),
+        actions: [
+          IconButton(
+            tooltip: 'تعویض دوربین',
+            onPressed: _cameras.length > 1 ? _switchCamera : null,
+            icon: const Icon(Icons.flip_camera_android_rounded),
+          ),
+        ],
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         children: [
-          Container(
-            height: 270,
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white12),
-            ),
-            child: Stack(
-              children: [
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.videocam_outlined, size: 64, color: Colors.white54),
-                      const SizedBox(height: 12),
-                      Text(live ? 'LIVE' : 'OFFLINE'),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'پیش‌نمایش فعلی است؛ استریم واقعی دوربین و صدا در مرحله اتصال سخت‌افزار اضافه می‌شود.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white54),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: AspectRatio(
+              aspectRatio: ready ? controller.value.aspectRatio : 16 / 9,
+              child: Container(
+                color: Colors.black,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (ready) CameraPreview(controller),
+                    if (_initializing)
+                      const Center(child: CircularProgressIndicator()),
+                    if (!ready && !_initializing)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.videocam_off_rounded,
+                                  size: 56, color: Colors.white54),
+                              const SizedBox(height: 12),
+                              Text(
+                                _error ?? 'دوربین آماده نیست.',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.white70),
+                              ),
+                              const SizedBox(height: 14),
+                              FilledButton.icon(
+                                onPressed: _initializeCameras,
+                                icon: const Icon(Icons.refresh_rounded),
+                                label: const Text('تلاش دوباره'),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: Chip(
-                    avatar: Icon(
-                      ambientAudio ? Icons.volume_up : Icons.volume_off,
-                      size: 16,
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Chip(
+                        avatar: Icon(
+                          ready ? Icons.circle : Icons.circle_outlined,
+                          size: 12,
+                        ),
+                        label: Text(ready ? 'LIVE' : 'OFFLINE'),
+                      ),
                     ),
-                    label: Text(ambientAudio ? 'صدای محیط روشن' : 'صدای محیط خاموش'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('صدای محیط'),
+                  subtitle: const Text('فعال‌کردن صدای ورودی دوربین/میکروفون'),
+                  value: _audioEnabled,
+                  onChanged: ready ? (_) => _toggleAudio() : null,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt_rounded),
+                  title: const Text('دوربین انتخاب‌شده'),
+                  subtitle: Text(
+                    _cameras.isEmpty
+                        ? 'در حال شناسایی دوربین‌ها...'
+                        : _cameras[_selectedCamera].name,
+                  ),
+                  trailing: IconButton(
+                    tooltip: 'تعویض دوربین',
+                    onPressed: _cameras.length > 1 ? _switchCamera : null,
+                    icon: const Icon(Icons.flip_camera_android_rounded),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('صدای محیط'),
-                    subtitle: const Text('همراه تصویر زنده، صدای ورودی انتخاب‌شده پخش شود'),
-                    value: ambientAudio,
-                    onChanged: (v) => setState(() => ambientAudio = v),
-                  ),
-                  const Divider(),
-                  DropdownButtonFormField<String>(
-                    value: audioSource,
-                    decoration: const InputDecoration(
-                      labelText: 'منبع صدا',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'میکروفون گوشی',
-                        child: Text('🎙️ میکروفون گوشی'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'میکروفون ربات',
-                        child: Text('🤖 میکروفون ربات'),
-                      ),
-                    ],
-                    onChanged: (v) => setState(() => audioSource = v ?? audioSource),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.volume_down),
-                      Expanded(
-                        child: Slider(
-                          value: volume,
-                          onChanged: ambientAudio
-                              ? (v) => setState(() => volume = v)
-                              : null,
-                        ),
-                      ),
-                      const Icon(Icons.volume_up),
-                    ],
-                  ),
-                ],
+          const SizedBox(height: 10),
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.info_outline_rounded),
+              title: Text('آماده برای هوش مصنوعی'),
+              subtitle: Text(
+                'تصویر زنده حالا از دوربین واقعی گوشی دریافت می‌شود و می‌تواند در مرحله بعد به ماژول بینایی AK-1 وصل شود.',
               ),
             ),
-          ),
-          const SizedBox(height: 14),
-          FilledButton.icon(
-            onPressed: () => setState(() => live = !live),
-            icon: Icon(live ? Icons.stop : Icons.play_arrow),
-            label: Text(live ? 'توقف تصویر و صدا' : 'شروع تصویر و صدا'),
           ),
         ],
       ),
