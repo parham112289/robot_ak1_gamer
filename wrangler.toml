@@ -1,3 +1,6 @@
 name = "robot-ak1-gamer"
 main = "worker.js"
 compatibility_date = "2026-09-07"
+
+[secrets]
+required = ["GEMINI_API_KEY"]
