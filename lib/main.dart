@@ -606,7 +606,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   bool _audioEnabled = true;
   bool _analyzing = false;
   String _visionAnswer = '';
-  final TextEditingController _backendController = TextEditingController(text: 'https://YOUR-WORKER.workers.dev');
+  final TextEditingController _backendController = TextEditingController(text: 'https://robot-ak1-gamer.parhamsadr-s89.workers.dev');
 
   @override
   void initState() {
@@ -922,7 +922,7 @@ class AssistantPage extends StatefulWidget {
 
 class _AssistantPageState extends State<AssistantPage> {
   final TextEditingController _commandController = TextEditingController();
-  final TextEditingController _backendController = TextEditingController(text: 'https://YOUR-WORKER.workers.dev');
+  final TextEditingController _backendController = TextEditingController(text: 'https://robot-ak1-gamer.parhamsadr-s89.workers.dev');
   final TextEditingController _robotController = TextEditingController(text: '192.168.4.1');
   final stt.SpeechToText _speech = stt.SpeechToText();
   final Ak1SpeechService _phoneSpeaker = Ak1SpeechService();

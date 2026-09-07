@@ -12,6 +12,22 @@ class Ak1BackendService {
       value = 'https://$value';
     }
     value = value.replaceFirst(RegExp(r'/+$'), '');
+
+    // کاربر باید فقط آدرس اصلی Worker را وارد کند.
+    // اگر به اشتباه /v1/status یا /v1/ai/command یا /v1/ai/vision
+    // در انتهای آدرس ذخیره شده باشد، قبل از افزودن endpoint حذف می‌شود.
+    const endpointSuffixes = [
+      '/v1/status',
+      '/v1/ai/command',
+      '/v1/ai/vision',
+    ];
+    for (final suffix in endpointSuffixes) {
+      if (value.endsWith(suffix)) {
+        value = value.substring(0, value.length - suffix.length);
+        break;
+      }
+    }
+
     return Uri.parse('$value$path');
   }
 
