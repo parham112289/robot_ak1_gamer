@@ -8,6 +8,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'services/ak1_backend_service.dart';
+import 'services/ak1_speech_service.dart';
 
 void main() {
   runApp(const RobotAk1App());
@@ -602,6 +604,9 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   bool _initializing = true;
   String? _error;
   bool _audioEnabled = true;
+  bool _analyzing = false;
+  String _visionAnswer = '';
+  final TextEditingController _backendController = TextEditingController(text: 'https://YOUR-WORKER.workers.dev');
 
   @override
   void initState() {
@@ -724,6 +729,27 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _analyzeCurrentFrame() async {
+    final controller = _controller;
+    final backend = _backendController.text.trim();
+    if (controller == null || !controller.value.isInitialized || backend.contains('YOUR-WORKER')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('دوربین را آماده کن و آدرس واقعی Cloudflare Worker را وارد کن.')));
+      return;
+    }
+    setState(() => _analyzing = true);
+    try {
+      final file = await controller.takePicture();
+      final bytes = await file.readAsBytes();
+      final answer = await Ak1BackendService(backend).analyzeImage(imageBase64: base64Encode(bytes));
+      if (!mounted) return;
+      setState(() => _visionAnswer = answer.isEmpty ? 'پاسخی دریافت نشد.' : answer);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تحلیل تصویر ناموفق بود: $e')));
+    } finally {
+      if (mounted) setState(() => _analyzing = false);
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final controller = _controller;
@@ -751,6 +777,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
+    _backendController.dispose();
     super.dispose();
   }
 
@@ -855,6 +882,23 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(height: 10),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                const Text('🧠 تحلیل تصویر با Gemini', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                TextField(controller: _backendController, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'آدرس Cloudflare Worker', hintText: 'https://....workers.dev', border: OutlineInputBorder())),
+                const SizedBox(height: 10),
+                FilledButton.icon(onPressed: _analyzing ? null : _analyzeCurrentFrame, icon: _analyzing ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.auto_awesome), label: Text(_analyzing ? 'در حال تحلیل...' : 'تحلیل فریم فعلی')),
+                if (_visionAnswer.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(_visionAnswer),
+                ],
+              ]),
+            ),
+          ),
+          const SizedBox(height: 10),
           const Card(
             child: ListTile(
               leading: Icon(Icons.info_outline_rounded),
@@ -878,10 +922,22 @@ class AssistantPage extends StatefulWidget {
 
 class _AssistantPageState extends State<AssistantPage> {
   final TextEditingController _commandController = TextEditingController();
+  final TextEditingController _backendController = TextEditingController(text: 'https://YOUR-WORKER.workers.dev');
+  final TextEditingController _robotController = TextEditingController(text: '192.168.4.1');
   final stt.SpeechToText _speech = stt.SpeechToText();
+  final Ak1SpeechService _phoneSpeaker = Ak1SpeechService();
   bool _listeningPhone = false;
+  bool _busy = false;
   String _voiceText = '';
   String _source = 'گوشی';
+  String _output = 'گوشی';
+  String _answer = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneSpeaker.init();
+  }
 
   Future<void> _startPhoneVoice() async {
     final available = await _speech.initialize();
@@ -907,10 +963,55 @@ class _AssistantPageState extends State<AssistantPage> {
     if (mounted) setState(() => _listeningPhone = false);
   }
 
+  Future<void> _sendCommand() async {
+    final text = _commandController.text.trim();
+    final backend = _backendController.text.trim();
+    if (text.isEmpty || backend.contains('YOUR-WORKER')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اول آدرس واقعی Cloudflare Worker را وارد کن.')));
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final service = Ak1BackendService(backend);
+      final answer = await service.ask(text);
+      if (!mounted) return;
+      setState(() => _answer = answer.isEmpty ? 'پاسخی دریافت نشد.' : answer);
+      await _playAnswer(answer);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا در اتصال به AI: $e')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _playAnswer(String text) async {
+    if (text.trim().isEmpty) return;
+    if (_output == 'گوشی') {
+      await _phoneSpeaker.speak(text);
+      return;
+    }
+    try {
+      await Ak1BackendService(_backendController.text.trim()).sendRobotSpeech(
+        robotUrl: _robotController.text.trim(),
+        text: text,
+      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('متن پاسخ برای اسپیکر ربات ارسال شد.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('اسپیکر ربات آماده نیست: $e')));
+    }
+  }
+
+  Future<void> _robotMicInfo() async {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('مسیر میکروفون ربات آماده UI است؛ برای صدای واقعی باید میکروفون و Firmware صوتی ربات اضافه شود.')));
+  }
+
   @override
   void dispose() {
     _commandController.dispose();
+    _backendController.dispose();
+    _robotController.dispose();
     _speech.stop();
+    _phoneSpeaker.dispose();
     super.dispose();
   }
 
@@ -919,48 +1020,57 @@ class _AssistantPageState extends State<AssistantPage> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        appBar: AppBar(title: const Text('دستور به ربات')),
+        appBar: AppBar(title: const Text('دستور و گفت‌وگوی AK-1')),
         body: ListView(
           padding: const EdgeInsets.all(18),
           children: [
-            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('دو مسیر مستقل برای فرمان دادن داریم: ۱) دستور متنی، ۲) دستور صوتی. در حالت صوتی می‌توانیم منبع صدا را گوشی یا میکروفون روی خود ربات انتخاب کنیم.'))),
+            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('AK-1 می‌تواند فرمان را از میکروفون گوشی بگیرد، به Cloud AI بفرستد و پاسخ را از اسپیکر گوشی یا مسیر اسپیکر ربات پخش کند.'))),
             const SizedBox(height: 12),
             Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const Text('✍️ دستور متنی', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+              const Text('☁️ اتصال Cloud AI', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              TextField(controller: _backendController, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'آدرس Cloudflare Worker', hintText: 'https://....workers.dev', border: OutlineInputBorder())),
               const SizedBox(height: 10),
-              TextField(controller: _commandController, minLines: 2, maxLines: 4, decoration: const InputDecoration(hintText: 'مثلاً: وضعیت ربات را بگو', border: OutlineInputBorder())),
-              const SizedBox(height: 10),
-              FilledButton.icon(onPressed: _sendCommand, icon: const Icon(Icons.send), label: const Text('ارسال دستور متنی')),
+              TextField(controller: _robotController, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'آدرس ربات برای خروجی صدا', hintText: '192.168.4.1', border: OutlineInputBorder())),
             ]))),
             const SizedBox(height: 12),
             Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const Text('🎙️ دستور صوتی', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+              const Text('✍️ / 🤖 فرمان', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              TextField(controller: _commandController, minLines: 2, maxLines: 4, decoration: const InputDecoration(hintText: 'مثلاً: وضعیت ربات را بگو', border: OutlineInputBorder())),
+              const SizedBox(height: 10),
+              FilledButton.icon(onPressed: _busy ? null : _sendCommand, icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send), label: Text(_busy ? 'در حال پردازش...' : 'ارسال به Gemini')),
+              if (_answer.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                const Text('پاسخ AK-1', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 6),
+                Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), color: Colors.black26), child: Text(_answer)),
+              ],
+            ]))),
+            const SizedBox(height: 12),
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              const Text('🎙️ ورودی صدا', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               SegmentedButton<String>(segments: const [ButtonSegment(value: 'گوشی', label: Text('میکروفون گوشی'), icon: Icon(Icons.phone_android)), ButtonSegment(value: 'ربات', label: Text('میکروفون ربات'), icon: Icon(Icons.mic_external_on))], selected: {_source}, onSelectionChanged: (v) => setState(() => _source = v.first)),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               if (_source == 'گوشی')
                 FilledButton.icon(onPressed: _listeningPhone ? _stopPhoneVoice : _startPhoneVoice, icon: Icon(_listeningPhone ? Icons.stop : Icons.mic), label: Text(_listeningPhone ? 'توقف شنیدن' : 'شروع فرمان صوتی گوشی'))
               else
                 FilledButton.icon(onPressed: _robotMicInfo, icon: const Icon(Icons.mic_external_on), label: const Text('فعال‌سازی میکروفون ربات')),
-              const SizedBox(height: 10),
-              if (_voiceText.isNotEmpty) Text('متن تشخیص‌داده‌شده: $_voiceText'),
+              if (_voiceText.isNotEmpty) ...[const SizedBox(height: 8), Text('متن تشخیص‌داده‌شده: $_voiceText')],
             ]))),
             const SizedBox(height: 12),
-            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('میکروفون ربات هنوز باید به ESP32-CAM اضافه و در Firmware پیاده‌سازی شود. برای این بخش یک میکروفون خارجی مناسب لازم است؛ بعد صدا از ربات به AK-1/Cloud فرستاده می‌شود.'))),
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              const Text('🔊 خروجی صدا', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(segments: const [ButtonSegment(value: 'گوشی', label: Text('اسپیکر گوشی'), icon: Icon(Icons.phone_android)), ButtonSegment(value: 'ربات', label: Text('اسپیکر ربات'), icon: Icon(Icons.volume_up_rounded))], selected: {_output}, onSelectionChanged: (v) => setState(() => _output = v.first)),
+              const SizedBox(height: 8),
+              Text(_output == 'گوشی' ? 'پاسخ با صدای فارسی از گوشی پخش می‌شود.' : 'پاسخ برای API صوتی ربات ارسال می‌شود؛ Firmware صوتی ربات باید /audio/speak را پشتیبانی کند.', style: const TextStyle(color: Colors.white60)),
+            ]))),
           ],
         ),
       ),
     );
-  }
-
-  void _sendCommand() {
-    final text = _commandController.text.trim();
-    if (text.isEmpty) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('دستور ثبت شد: $text')));
-  }
-
-  void _robotMicInfo() {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('بعد از اتصال میکروفون به ESP32-CAM، این دکمه به مسیر صدای ربات وصل می‌شود.')));
   }
 }
 

@@ -28,3 +28,12 @@
 - pubspec.lock
 - analysis_options.yaml
 - .gitignore
+
+## AK-1 AI / Voice / Speaker update
+- Flutter can send text commands to `/v1/ai/command`.
+- Flutter can capture a phone-camera frame and send it to `/v1/ai/vision` for Gemini vision analysis.
+- Phone speech input uses Persian speech recognition.
+- Phone speaker output uses Flutter TTS (`fa-IR`).
+- Speaker output can be switched in the UI between phone and robot.
+- Robot output sends text to the robot's `/audio/speak` endpoint. The ESP32 firmware must implement that endpoint and an actual audio playback path (for example a suitable audio/TTS module) before the robot physically speaks.
+- Gemini API keys remain server-side in the Cloudflare Worker secret `GEMINI_API_KEY`.
