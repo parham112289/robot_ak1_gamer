@@ -966,8 +966,12 @@ class _AssistantPageState extends State<AssistantPage> {
   Future<void> _sendCommand() async {
     final text = _commandController.text.trim();
     final backend = _backendController.text.trim();
-    if (text.isEmpty || backend.contains('YOUR-WORKER')) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اول آدرس واقعی Cloudflare Worker را وارد کن.')));
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اول فرمان یا پیام خودت را وارد کن.')));
+      return;
+    }
+    if (backend.isEmpty || backend.contains('YOUR-WORKER')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('آدرس Cloudflare Worker را وارد کن.')));
       return;
     }
     setState(() => _busy = true);
@@ -1024,7 +1028,7 @@ class _AssistantPageState extends State<AssistantPage> {
         body: ListView(
           padding: const EdgeInsets.all(18),
           children: [
-            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('AK-1 می‌تواند فرمان را از میکروفون گوشی بگیرد، به Cloud AI بفرستد و پاسخ را از اسپیکر گوشی یا مسیر اسپیکر ربات پخش کند.'))),
+            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('هوش مصنوعی AK-1 مستقل از روشن بودن ربات است؛ پیام یا صدای گوشی مستقیم از طریق اینترنت به Cloud AI می‌رود و پاسخ روی گوشی پخش می‌شود. برای دوربین، میکروفون و اسپیکر ربات، خود ربات باید روشن و متصل باشد.'))),
             const SizedBox(height: 12),
             Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const Text('☁️ اتصال Cloud AI', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
