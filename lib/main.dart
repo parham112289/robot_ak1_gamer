@@ -932,6 +932,8 @@ class _AssistantPageState extends State<AssistantPage> {
   String _source = 'گوشی';
   String _output = 'گوشی';
   String _answer = '';
+  bool _diagnosingBackend = false;
+  String _backendDiagnostic = '';
 
   @override
   void initState() {
@@ -963,15 +965,31 @@ class _AssistantPageState extends State<AssistantPage> {
     if (mounted) setState(() => _listeningPhone = false);
   }
 
+  Future<void> _diagnoseBackend() async {
+    final backend = _backendController.text.trim();
+    if (backend.isEmpty) return;
+    setState(() {
+      _diagnosingBackend = true;
+      _backendDiagnostic = 'در حال تست اتصال به Worker...';
+    });
+    try {
+      final result = await Ak1BackendService(backend).diagnose();
+      if (!mounted) return;
+      setState(() {
+        _backendDiagnostic = '${result.reachable ? '✅' : '❌'} ${result.message} (${result.elapsed.inMilliseconds} ms)';
+      });
+    } catch (e) {
+      if (mounted) setState(() => _backendDiagnostic = '❌ خطای تست Backend: $e');
+    } finally {
+      if (mounted) setState(() => _diagnosingBackend = false);
+    }
+  }
+
   Future<void> _sendCommand() async {
     final text = _commandController.text.trim();
     final backend = _backendController.text.trim();
-    if (text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اول فرمان یا پیام خودت را وارد کن.')));
-      return;
-    }
-    if (backend.isEmpty || backend.contains('YOUR-WORKER')) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('آدرس Cloudflare Worker را وارد کن.')));
+    if (text.isEmpty || backend.contains('YOUR-WORKER')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اول آدرس واقعی Cloudflare Worker را وارد کن.')));
       return;
     }
     setState(() => _busy = true);
@@ -1028,12 +1046,22 @@ class _AssistantPageState extends State<AssistantPage> {
         body: ListView(
           padding: const EdgeInsets.all(18),
           children: [
-            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('هوش مصنوعی AK-1 مستقل از روشن بودن ربات است؛ پیام یا صدای گوشی مستقیم از طریق اینترنت به Cloud AI می‌رود و پاسخ روی گوشی پخش می‌شود. برای دوربین، میکروفون و اسپیکر ربات، خود ربات باید روشن و متصل باشد.'))),
+            const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('AK-1 می‌تواند فرمان را از میکروفون گوشی بگیرد، به Cloud AI بفرستد و پاسخ را از اسپیکر گوشی یا مسیر اسپیکر ربات پخش کند.'))),
             const SizedBox(height: 12),
             Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const Text('☁️ اتصال Cloud AI', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               TextField(controller: _backendController, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'آدرس Cloudflare Worker', hintText: 'https://....workers.dev', border: OutlineInputBorder())),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _diagnosingBackend ? null : _diagnoseBackend,
+                icon: _diagnosingBackend ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.network_check),
+                label: Text(_diagnosingBackend ? 'در حال تست...' : 'تست اتصال Backend'),
+              ),
+              if (_backendDiagnostic.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(_backendDiagnostic, style: const TextStyle(color: Colors.white70)),
+              ],
               const SizedBox(height: 10),
               TextField(controller: _robotController, keyboardType: TextInputType.url, decoration: const InputDecoration(labelText: 'آدرس ربات برای خروجی صدا', hintText: '192.168.4.1', border: OutlineInputBorder())),
             ]))),

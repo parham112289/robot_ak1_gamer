@@ -2,25 +2,23 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+class BackendDiagnostic {
+  final bool reachable;
+  final int? statusCode;
+  final String message;
+  final Duration elapsed;
+
+  const BackendDiagnostic({
+    required this.reachable,
+    required this.statusCode,
+    required this.message,
+    required this.elapsed,
+  });
+}
+
 class Ak1BackendService {
   final String baseUrl;
-  Ak1BackendService(String url) : baseUrl = _normalizeBaseUrl(url);
-
-  static String _normalizeBaseUrl(String url) {
-    var value = url.trim();
-    if (!value.startsWith('http://') && !value.startsWith('https://')) {
-      value = 'https://$value';
-    }
-    value = value.replaceFirst(RegExp(r'/+$'), '');
-    const endpointSuffixes = ['/v1/status', '/v1/ai/command', '/v1/ai/vision'];
-    for (final suffix in endpointSuffixes) {
-      if (value.endsWith(suffix)) {
-        value = value.substring(0, value.length - suffix.length);
-        break;
-      }
-    }
-    return value;
-  }
+  const Ak1BackendService(this.baseUrl);
 
   Uri _uri(String path) {
     var value = baseUrl.trim();
@@ -28,6 +26,22 @@ class Ak1BackendService {
       value = 'https://$value';
     }
     value = value.replaceFirst(RegExp(r'/+$'), '');
+
+    // کاربر باید فقط آدرس اصلی Worker را وارد کند.
+    // اگر به اشتباه /v1/status یا /v1/ai/command یا /v1/ai/vision
+    // در انتهای آدرس ذخیره شده باشد، قبل از افزودن endpoint حذف می‌شود.
+    const endpointSuffixes = [
+      '/v1/status',
+      '/v1/ai/command',
+      '/v1/ai/vision',
+    ];
+    for (final suffix in endpointSuffixes) {
+      if (value.endsWith(suffix)) {
+        value = value.substring(0, value.length - suffix.length);
+        break;
+      }
+    }
+
     return Uri.parse('$value$path');
   }
 
@@ -40,13 +54,13 @@ class Ak1BackendService {
 
     for (var attempt = 1; attempt <= 3; attempt++) {
       final client = HttpClient()
-        ..connectionTimeout = const Duration(seconds: 15)
+        ..connectionTimeout = const Duration(seconds: 8)
         ..idleTimeout = const Duration(seconds: 30)
         ..userAgent = 'AK-1-Flutter/1.0';
 
       try {
         final request = await client.postUrl(_uri(path)).timeout(
-          const Duration(seconds: 20),
+          const Duration(seconds: 12),
         );
         request.headers.contentType = ContentType.json;
         request.headers.set('Accept', 'application/json');
@@ -86,26 +100,86 @@ class Ak1BackendService {
     throw lastError ?? Exception('خطای ناشناخته در اتصال به Backend');
   }
 
-  Future<Map<String, dynamic>> status() async {
+  Future<BackendDiagnostic> diagnose() async {
+    final started = DateTime.now();
     final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 10)
-      ..idleTimeout = const Duration(seconds: 15)
-      ..userAgent = 'AK-1-Flutter/1.0';
+      ..connectionTimeout = const Duration(seconds: 8)
+      ..idleTimeout = const Duration(seconds: 12)
+      ..userAgent = 'AK-1-Flutter/1.1';
     try {
       final request = await client.getUrl(_uri('/v1/status')).timeout(
-        const Duration(seconds: 12),
+        const Duration(seconds: 10),
       );
       request.headers.set('Accept', 'application/json');
+      request.headers.set('Cache-Control', 'no-cache');
       final response = await request.close().timeout(const Duration(seconds: 12));
-      final text = await utf8.decoder.bind(response).join();
+      final text = await utf8.decoder.bind(response).join().timeout(const Duration(seconds: 12));
+      final elapsed = DateTime.now().difference(started);
       if (response.statusCode != 200) {
-        throw HttpException('HTTP ${response.statusCode}', uri: _uri('/v1/status'));
+        return BackendDiagnostic(
+          reachable: true,
+          statusCode: response.statusCode,
+          message: 'Worker قابل دسترسی است، اما /v1/status کد HTTP ${response.statusCode} برگرداند.',
+          elapsed: elapsed,
+        );
       }
-      return jsonDecode(text) as Map<String, dynamic>;
+      try {
+        final data = jsonDecode(text) as Map<String, dynamic>;
+        final gemini = data['gemini'] == true ? 'کلید Gemini روی Worker تنظیم شده است.' : 'کلید Gemini روی Worker تنظیم نشده است.';
+        return BackendDiagnostic(
+          reachable: true,
+          statusCode: response.statusCode,
+          message: 'Backend و /v1/status سالم هستند. $gemini',
+          elapsed: elapsed,
+        );
+      } catch (_) {
+        return BackendDiagnostic(
+          reachable: true,
+          statusCode: response.statusCode,
+          message: 'Worker پاسخ داد، ولی پاسخ /v1/status JSON معتبر نبود.',
+          elapsed: elapsed,
+        );
+      }
+    } on TimeoutException {
+      return BackendDiagnostic(
+        reachable: false,
+        statusCode: null,
+        message: 'اتصال به Worker Timeout شد. اگر لینک در مرورگر باز می‌شود، Proxy/VPN یا مسیر شبکه اپ را بررسی کن.',
+        elapsed: DateTime.now().difference(started),
+      );
     } on HandshakeException {
-      throw Exception('HTTPS به Backend برقرار نشد.');
+      return BackendDiagnostic(
+        reachable: false,
+        statusCode: null,
+        message: 'Handshake HTTPS با Worker برقرار نشد. Proxy/VPN یا گواهی/شبکه را بررسی کن.',
+        elapsed: DateTime.now().difference(started),
+      );
     } on SocketException catch (e) {
-      throw Exception('اتصال اینترنت برقرار نیست: ${e.message}');
+      return BackendDiagnostic(
+        reachable: false,
+        statusCode: null,
+        message: 'اتصال شبکه به Worker برقرار نشد: ${e.message}',
+        elapsed: DateTime.now().difference(started),
+      );
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<Map<String, dynamic>> status() async {
+    final result = await diagnose();
+    if (!result.reachable) throw Exception(result.message);
+    if (result.statusCode != 200) throw Exception(result.message);
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 8)
+      ..idleTimeout = const Duration(seconds: 12)
+      ..userAgent = 'AK-1-Flutter/1.1';
+    try {
+      final request = await client.getUrl(_uri('/v1/status')).timeout(const Duration(seconds: 10));
+      request.headers.set('Accept', 'application/json');
+      final response = await request.close().timeout(const Duration(seconds: 12));
+      final text = await utf8.decoder.bind(response).join().timeout(const Duration(seconds: 12));
+      return jsonDecode(text) as Map<String, dynamic>;
     } finally {
       client.close(force: true);
     }

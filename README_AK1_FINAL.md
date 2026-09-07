@@ -37,3 +37,6 @@
 - Speaker output can be switched in the UI between phone and robot.
 - Robot output sends text to the robot's `/audio/speak` endpoint. The ESP32 firmware must implement that endpoint and an actual audio playback path (for example a suitable audio/TTS module) before the robot physically speaks.
 - Gemini API keys remain server-side in the Cloudflare Worker secret `GEMINI_API_KEY`.
+
+## Backend diagnostics (FIXED v3)
+The Android app now includes a **تست اتصال Backend** button. It checks `GET /v1/status` without calling Gemini and reports whether the Worker is reachable, its HTTP status, and whether `GEMINI_API_KEY` is configured on the Worker. AI requests still use `/v1/ai/command` and `/v1/ai/vision`.
