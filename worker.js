@@ -24,10 +24,7 @@ export default {
 
     if (url.pathname === "/") {
       return new Response("AK-1 Backend is online!", {
-        headers: {
-          "content-type": "text/plain; charset=UTF-8",
-          ...corsHeaders,
-        },
+        headers: { "content-type": "text/plain; charset=UTF-8", ...corsHeaders },
       });
     }
 
@@ -36,7 +33,7 @@ export default {
         device: "AK-1",
         backend: "online",
         gemini: Boolean(env.GEMINI_API_KEY),
-        version: "1.1.0",
+        version: "1.1.1",
       });
     }
 
@@ -53,14 +50,8 @@ export default {
       }
 
       const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
-
-      if (!prompt) {
-        return json({ error: "prompt is required." }, 400);
-      }
-
-      if (prompt.length > 8000) {
-        return json({ error: "prompt is too long." }, 413);
-      }
+      if (!prompt) return json({ error: "prompt is required." }, 400);
+      if (prompt.length > 8000) return json({ error: "prompt is too long." }, 413);
 
       const model = "gemini-2.5-flash";
       const endpoint =
@@ -73,44 +64,28 @@ export default {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: prompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1024,
-          },
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
         }),
       });
 
       const raw = await geminiResponse.text();
-
       if (!geminiResponse.ok) {
-        return json(
-          {
-            error: "Gemini request failed.",
-            status: geminiResponse.status,
-            details: raw.slice(0, 2000),
-          },
-          502,
-        );
+        return json({
+          error: "Gemini request failed.",
+          status: geminiResponse.status,
+          details: raw.slice(0, 2000),
+        }, 502);
       }
 
       let data;
-      try {
-        data = JSON.parse(raw);
-      } catch {
-        return json({ error: "Invalid response from Gemini." }, 502);
-      }
+      try { data = JSON.parse(raw); }
+      catch { return json({ error: "Invalid response from Gemini." }, 502); }
 
-      const text =
-        data?.candidates?.[0]?.content?.parts
-          ?.map((part) => part?.text || "")
-          .join("")
-          .trim() || "";
+      const text = data?.candidates?.[0]?.content?.parts
+        ?.map((part) => part?.text || "")
+        .join("")
+        .trim() || "";
 
       return json({ ok: true, model, text });
     }
