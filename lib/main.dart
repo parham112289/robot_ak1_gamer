@@ -78,17 +78,7 @@ class DashboardPage extends StatelessWidget {
               Text('AK-1', style: TextStyle(fontWeight: FontWeight.w800)),
             ],
           ),
-          actions: [
-            IconButton(
-              tooltip: 'بازی هوشمند',
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const GamingPage()),
-              ),
-              icon: const Icon(Icons.sports_esports_outlined),
-            ),
-            const SizedBox(width: 8),
-          ],
+          actions: const [SizedBox(width: 8)],
         ),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
@@ -128,25 +118,6 @@ class DashboardPage extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => const ConnectivityPage()),
               ),
             ),
-            _menuCard(
-              context,
-              icon: Icons.videocam_outlined,
-              title: 'دوربین گوشی / PS4',
-              subtitle: 'نمایش مانیتور و آماده‌سازی تحلیل بازی',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const CameraPage()),
-              ),
-            ),
-            _menuCard(
-              context,
-              icon: Icons.sports_esports_outlined,
-              title: 'بازی هوشمند',
-              subtitle: 'تحلیل بازی و تصمیم‌گیری با AI',
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const GamingPage()),
-              ),
             ),
             const SizedBox(height: 8),
             _sectionTitle('ابزارهای جانبی', 'امکانات بیشتر AK-1'),
@@ -954,10 +925,35 @@ class _AssistantPageState extends State<AssistantPage> {
         if (!mounted) return;
         setState(() {
           _voiceText = result.recognizedWords;
-          _commandController.text = result.recognizedWords;
         });
+        if (result.finalResult && result.recognizedWords.trim().isNotEmpty) {
+          _speech.stop();
+          _sendVoiceCommand(result.recognizedWords.trim());
+        }
       },
     );
+  }
+
+  Future<void> _sendVoiceCommand(String text) async {
+    final backend = _backendController.text.trim();
+    if (text.isEmpty || backend.isEmpty || backend.contains('YOUR-WORKER')) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('آدرس واقعی Cloudflare Worker را وارد کن.')));
+      return;
+    }
+    setState(() { _listeningPhone = false; _busy = true; });
+    try {
+      final answer = await Ak1BackendService(backend).ask(text);
+      if (!mounted) return;
+      setState(() {
+        _answer = answer.isEmpty ? 'پاسخی دریافت نشد.' : answer;
+        _commandController.clear();
+      });
+      await _playAnswer(answer);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا در ارسال فرمان صوتی: $e')));
+    } finally {
+      if (mounted) setState(() { _busy = false; _listeningPhone = false; });
+    }
   }
 
   Future<void> _stopPhoneVoice() async {
@@ -1071,7 +1067,7 @@ class _AssistantPageState extends State<AssistantPage> {
               const SizedBox(height: 10),
               TextField(controller: _commandController, minLines: 2, maxLines: 4, decoration: const InputDecoration(hintText: 'مثلاً: وضعیت ربات را بگو', border: OutlineInputBorder())),
               const SizedBox(height: 10),
-              FilledButton.icon(onPressed: _busy ? null : _sendCommand, icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send), label: Text(_busy ? 'در حال پردازش...' : 'ارسال به Gemini')),
+              FilledButton.icon(onPressed: _busy ? null : _sendCommand, icon: _busy ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send), label: Text(_busy ? 'در حال پردازش...' : 'ارسال فرمان')),
               if (_answer.isNotEmpty) ...[
                 const SizedBox(height: 14),
                 const Text('پاسخ AK-1', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -1089,7 +1085,7 @@ class _AssistantPageState extends State<AssistantPage> {
                 FilledButton.icon(onPressed: _listeningPhone ? _stopPhoneVoice : _startPhoneVoice, icon: Icon(_listeningPhone ? Icons.stop : Icons.mic), label: Text(_listeningPhone ? 'توقف شنیدن' : 'شروع فرمان صوتی گوشی'))
               else
                 FilledButton.icon(onPressed: _robotMicInfo, icon: const Icon(Icons.mic_external_on), label: const Text('فعال‌سازی میکروفون ربات')),
-              if (_voiceText.isNotEmpty) ...[const SizedBox(height: 8), Text('متن تشخیص‌داده‌شده: $_voiceText')],
+              const SizedBox(height: 8), const Text('فرمان صوتی مستقیماً برای AI ارسال می‌شود و داخل کادر فرمان متنی نوشته نمی‌شود.', style: TextStyle(color: Colors.white60)), if (_voiceText.isNotEmpty) ...[const SizedBox(height: 8), Text('فرمان شنیده‌شده: $_voiceText')],
             ]))),
             const SizedBox(height: 12),
             Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -1478,268 +1474,6 @@ class _LaptopPageState extends State<LaptopPage> {
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.chevron_left),
         onTap: onTap,
-      ),
-    );
-  }
-}
-
-class GamingPage extends StatefulWidget {
-  const GamingPage({super.key});
-
-  @override
-  State<GamingPage> createState() => _GamingPageState();
-}
-
-class _GamingPageState extends State<GamingPage> {
-  Timer? _timer;
-  bool aiRunning = false;
-  String platform = 'PS4';
-  String game = 'Elden Ring';
-  String goal = 'شکست دادن باس';
-  String decision = 'در انتظار تصویر بازی...';
-  double confidence = 0;
-  int frame = 0;
-
-  final List<String> demoDecisions = [
-    'در حال تحلیل تصویر بازی...',
-    'بازیکن و باس شناسایی شدند',
-    'فاصله مناسب برای حمله',
-    'تصمیم پیشنهادی: ATTACK',
-    'حمله باس شناسایی شد',
-    'تصمیم پیشنهادی: DODGE',
-    'دوباره در حال مشاهده وضعیت...',
-  ];
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void toggleAi() {
-    if (aiRunning) {
-      _timer?.cancel();
-      setState(() {
-        aiRunning = false;
-        decision = 'AI متوقف شد';
-        confidence = 0;
-      });
-      return;
-    }
-
-    setState(() {
-      aiRunning = true;
-      decision = 'شروع حلقه Observe → Decide → Act';
-    });
-
-    _timer = Timer.periodic(const Duration(milliseconds: 900), (_) {
-      if (!mounted) return;
-      frame++;
-      final index = frame % demoDecisions.length;
-      setState(() {
-        decision = demoDecisions[index];
-        confidence = index == 0 ? 0.0 : 0.72 + ((index % 3) * 0.08);
-      });
-    });
-  }
-
-  void stopImmediately() {
-    _timer?.cancel();
-    setState(() {
-      aiRunning = false;
-      decision = 'توقف اضطراری — هیچ ورودی کنترلی ارسال نشد';
-      confidence = 0;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('بازی هوشمند'),
-        actions: [
-          IconButton(
-            tooltip: 'توقف',
-            onPressed: stopImmediately,
-            icon: const Icon(Icons.stop_circle_outlined),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(18),
-        children: [
-          _gamePreview(),
-          const SizedBox(height: 14),
-          _selectors(),
-          const SizedBox(height: 14),
-          _goalCard(),
-          const SizedBox(height: 14),
-          _aiCard(),
-          const SizedBox(height: 14),
-          _architectureCard(),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: toggleAi,
-                  icon: Icon(aiRunning ? Icons.pause : Icons.play_arrow),
-                  label: Text(aiRunning ? 'توقف AI' : 'شروع AI'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: stopImmediately,
-                  icon: const Icon(Icons.stop),
-                  label: const Text('توقف فوری'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _gamePreview() {
-    return Container(
-      height: 210,
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: Stack(
-        children: [
-          const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.videogame_asset_outlined, size: 56, color: Colors.white54),
-                SizedBox(height: 10),
-                Text('ورودی تصویر بازی'),
-                SizedBox(height: 5),
-                Text(
-                  'فعلاً شبیه‌سازی شده؛ اتصال واقعی دوربین/استریم بعداً اضافه می‌شود.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white54),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: 12,
-            right: 12,
-            child: Chip(
-              avatar: Icon(
-                aiRunning ? Icons.circle : Icons.circle_outlined,
-                size: 13,
-              ),
-              label: Text(aiRunning ? 'AI ACTIVE' : 'AI OFF'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _selectors() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          children: [
-            DropdownButtonFormField<String>(
-              value: platform,
-              decoration: const InputDecoration(
-                labelText: 'پلتفرم',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'PS4', child: Text('PlayStation 4')),
-                DropdownMenuItem(value: 'Laptop', child: Text('Laptop')),
-              ],
-              onChanged: (v) => setState(() => platform = v ?? platform),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: game,
-              decoration: const InputDecoration(
-                labelText: 'بازی',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'Elden Ring', child: Text('Elden Ring')),
-              ],
-              onChanged: (v) => setState(() => game = v ?? game),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _goalCard() {
-    return Card(
-      child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.flag_outlined)),
-        title: const Text('هدف AI'),
-        subtitle: Text(goal),
-        trailing: const Icon(Icons.auto_awesome),
-      ),
-    );
-  }
-
-  Widget _aiCard() {
-    final percent = (confidence * 100).round();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'تصمیم فعلی AI',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            Text(decision),
-            const SizedBox(height: 12),
-            LinearProgressIndicator(value: confidence),
-            const SizedBox(height: 8),
-            Text('اعتماد تقریبی: $percent%'),
-            const SizedBox(height: 12),
-            const Text(
-              'این نسخه حلقه تحلیل و تصمیم را شبیه‌سازی می‌کند؛ اتصال واقعی کنترلر باید جداگانه پیاده‌سازی شود و اجرای خودکار بهتر است با تأیید کاربر انجام شود.',
-              style: TextStyle(color: Colors.white54),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _architectureCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'مسیر اجرای AI',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 12),
-            Text('📷 تصویر → 👁️ Vision → 🧠 تصمیم → 🎮 Controller Bridge'),
-            SizedBox(height: 8),
-            Text(
-              'اتصال واقعی دوربین، مدل بینایی و مسیر کنترلر باید جداگانه پیاده‌سازی و با مجوزهای لازم سیستم‌عامل انجام شود.',
-              style: TextStyle(color: Colors.white54),
-            ),
-          ],
-        ),
       ),
     );
   }
