@@ -1,13 +1,14 @@
-name: build-apk
+name: Build AK-1 APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -25,31 +26,38 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Verify Flutter project
-        working-directory: phone_app
-        run: |
-          test -f pubspec.yaml
-          flutter --version
+      - name: Verify Flutter
+        run: flutter --version
 
-      - name: Generate Android project from current Flutter template
-        working-directory: phone_app
-        run: flutter create --platforms=android --project-name ak1_phone_app .
+      - name: Generate fresh Android project
+        run: flutter create --platforms=android --project-name ak1 .
+
+      - name: Add Android permissions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          marker = '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
+          additions = '''\n    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"/>\n'''
+          if 'android.permission.INTERNET' not in s:
+              s = s.replace(marker, marker + additions)
+          p.write_text(s)
+          PY
 
       - name: Get packages
-        working-directory: phone_app
         run: flutter pub get
 
       - name: Analyze
-        working-directory: phone_app
         run: flutter analyze
 
       - name: Build release APK
-        working-directory: phone_app
         run: flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ak1-release-apk
-          path: phone_app/build/app/outputs/flutter-apk/app-release.apk
+          name: AK1-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error

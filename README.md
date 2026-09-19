@@ -1,21 +1,52 @@
-# AK-1 — Complete GitHub Package
+# AK-1 — Complete Fresh Project
 
-این بسته برای قرار گرفتن **مستقیم در ریشه Repository گیت‌هاب** آماده شده است.
+این نسخه **از صفر و در ریشه Repository** آماده شده است؛ مثل زمانی که یک Flutter project جدید می‌سازی.
 
-## ساخت APK
-1. تمام فایل‌های این بسته را در Root ریپازیتوری قرار بده؛ یعنی `.github` و `phone_app` باید مستقیم در Root باشند.
-2. برو به **Actions → build-apk**.
-3. روی **Run workflow** بزن.
-4. پس از موفقیت، از بخش **Artifacts** فایل `ak1-release-apk` را دریافت کن.
+## ساختار اصلی
 
-Workflow از قالب فعلی Flutter، پوشه Android را خودش تولید می‌کند تا نسخه‌های قدیمی Gradle/Android باعث خطای Build نشوند.
+```text
+AK-1/
+├── .github/workflows/build-apk.yml
+├── lib/
+│   ├── main.dart
+│   └── services/ak1_service.dart
+├── backend/
+├── esp32_cam/
+├── docs/
+├── pubspec.yaml
+└── README.md
+```
 
-## اجزای پروژه
-- `phone_app/` اپ Flutter
-- `backend/` Cloudflare Worker / OpenRouter
-- `esp32_cam/` firmware پایه ESP32-CAM
-- `docs/` مستندات
-- `.github/workflows/build-apk.yml` ساخت خودکار APK
+## قابلیت‌های اپ
 
-## نکته
-در اپ، **درصد باتری حذف شده** و فقط ولتاژ باتری در صورت ارسال شدن نمایش داده می‌شود.
+- AI با OpenRouter
+- Study Mode
+- Game Mode
+- فرمان متنی
+- فرمان صوتی از میکروفون گوشی
+- کنترل LEFT / RIGHT / STOP
+- نمایش آنلاین/آفلاین
+- نمایش ولتاژ باتری در صورت دریافت شدن
+- صفحه دوربین
+- بدون درصد شارژ باتری
+- بدون PS4 و LCD
+
+## GitHub
+
+کل محتویات همین پوشه را مستقیماً در ریشه Repository قرار بده.
+
+سپس از بخش **Actions**، workflow با نام **Build AK-1 APK** را اجرا کن. Workflow ابتدا Android project را با قالب همان نسخه Flutter می‌سازد و بعد APK release تولید می‌کند.
+
+## Backend
+
+در Cloudflare Worker Secret زیر را تنظیم کن:
+
+`OPENROUTER_API_KEY`
+
+مدل پیش‌فرض:
+
+`openrouter/free`
+
+## نکته سخت‌افزار
+
+کد ESP32-CAM موجود در این بسته پایه است. پین‌های واقعی موتور، DFPlayer و سایر قطعات باید با برد و سیم‌کشی نهایی تطبیق داده شوند.
