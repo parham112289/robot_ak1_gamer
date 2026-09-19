@@ -1,6 +1,8 @@
-AK-1 FRESH PROJECT
+1) Delete the old GitHub repository files.
+2) Upload the CONTENTS of this package directly to the repository root.
+3) Commit/push to main.
+4) Open Actions.
+5) Run Build AK-1 APK.
+6) Download AK1-release-apk from Artifacts.
 
-این پوشه یک پروژه تازه Flutter است.
-در Android Studio همین پوشه AK1 را Open کن.
-برای GitHub کل محتوای همین پوشه را در Repository قرار بده.
-Workflow خودش Android platform را با Flutter stable بازسازی می‌کند و سپس APK می‌سازد.
+Do not upload the outer ZIP itself into the repository.

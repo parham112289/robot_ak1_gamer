@@ -17,7 +17,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -25,14 +24,17 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Generate Android platform files
-        run: flutter create --platforms=android --org com.ak1 .
+      - name: Create Android platform from the current Flutter SDK
+        run: flutter create --platforms=android --org com.ak1 --project-name ak1 .
 
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Analyze
+      - name: Analyze Dart project
         run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
 
       - name: Build release APK
         run: flutter build apk --release

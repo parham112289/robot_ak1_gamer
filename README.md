@@ -1,52 +1,39 @@
-# AK-1 — Complete Fresh Project
+# AK-1 — Clean GitHub Project
 
-این نسخه **از صفر و در ریشه Repository** آماده شده است؛ مثل زمانی که یک Flutter project جدید می‌سازی.
+این Repository از صفر ساخته شده و برای قرار دادن مستقیم در GitHub آماده است.
 
-## ساختار اصلی
+## نکته مهم
+محتویات همین پوشه را در ریشه Repository قرار بده. پوشه دیگری مثل `AK1/` نباید دور آن قرار بگیرد و فایل‌های پروژه قبلی را هم نگه ندار.
 
-```text
-AK-1/
-├── .github/workflows/build-apk.yml
-├── lib/
-│   ├── main.dart
-│   └── services/ak1_service.dart
-├── backend/
-├── esp32_cam/
-├── docs/
-├── pubspec.yaml
-└── README.md
-```
+## Build APK
+GitHub Actions در هر Push یا Run دستی:
+1. Flutter Stable را نصب می‌کند.
+2. Android platform را با همان نسخه Flutter تولید می‌کند.
+3. dependencies را می‌گیرد.
+4. analyze و test را اجرا می‌کند.
+5. APK release می‌سازد.
+6. APK را در Artifacts قرار می‌دهد.
 
-## قابلیت‌های اپ
+مسیر: Actions → Build AK-1 APK → Run workflow
 
+## امکانات
 - AI با OpenRouter
 - Study Mode
 - Game Mode
 - فرمان متنی
 - فرمان صوتی از میکروفون گوشی
 - کنترل LEFT / RIGHT / STOP
-- نمایش آنلاین/آفلاین
-- نمایش ولتاژ باتری در صورت دریافت شدن
-- صفحه دوربین
-- بدون درصد شارژ باتری
-- بدون PS4 و LCD
+- ESP32-CAM از طریق شبکه محلی
+- نمایش وضعیت و ولتاژ باتری در صورت ارسال توسط ESP32
+- تصویر دوربین
+- تنظیم آدرس ESP32 از داخل اپ
+- درصد باتری عمداً وجود ندارد
+- PS4، LCD و میکروفون روی ربات وجود ندارند
 
-## GitHub
+## OpenRouter
+در Cloudflare Worker یک Secret به نام `OPENROUTER_API_KEY` بساز. کلید را داخل GitHub یا Flutter قرار نده.
 
-کل محتویات همین پوشه را مستقیماً در ریشه Repository قرار بده.
+## ESP32
+اپ برای سخت‌افزار از آدرس محلی ESP32 استفاده می‌کند. بعد از اتصال ESP32 به Wi-Fi، آدرس آن را در Settings اپ وارد کن، مثلاً `http://192.168.1.50`.
 
-سپس از بخش **Actions**، workflow با نام **Build AK-1 APK** را اجرا کن. Workflow ابتدا Android project را با قالب همان نسخه Flutter می‌سازد و بعد APK release تولید می‌کند.
-
-## Backend
-
-در Cloudflare Worker Secret زیر را تنظیم کن:
-
-`OPENROUTER_API_KEY`
-
-مدل پیش‌فرض:
-
-`openrouter/free`
-
-## نکته سخت‌افزار
-
-کد ESP32-CAM موجود در این بسته پایه است. پین‌های واقعی موتور، DFPlayer و سایر قطعات باید با برد و سیم‌کشی نهایی تطبیق داده شوند.
+کد ESP32 داخل `esp32_cam/` است. پین‌های موتور نمونه هستند و قبل از سیم‌کشی باید با برد و سیم‌کشی واقعی بررسی شوند.
