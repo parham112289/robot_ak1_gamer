@@ -1,3 +1,3 @@
-name = 'ak1-backend'
-main = 'worker.js'
-compatibility_date = '2026-09-19'
+name = "ak1-backend"
+main = "worker.js"
+compatibility_date = "2026-09-19"

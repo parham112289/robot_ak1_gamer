@@ -3,11 +3,14 @@ name: Build AK-1 APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - master
 
 jobs:
   build:
     runs-on: ubuntu-24.04
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -24,17 +27,20 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Create Android platform from the current Flutter SDK
-        run: flutter create --platforms=android --org com.ak1 --project-name ak1 .
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Generate Android platform
+        run: flutter create --platforms=android --project-name ak1 .
 
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Analyze Dart project
-        run: flutter analyze
-
       - name: Run tests
         run: flutter test
+
+      - name: Analyze
+        run: flutter analyze
 
       - name: Build release APK
         run: flutter build apk --release

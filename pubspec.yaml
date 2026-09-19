@@ -1,5 +1,5 @@
 name: ak1
-description: AK-1 AI study and game helper with ESP32-CAM control.
+description: AK-1 AI controller app
 publish_to: 'none'
 version: 1.0.0+1
 
