@@ -8,9 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: phone_app
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -28,16 +25,26 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Generate/repair Android platform files
+      - name: Verify Flutter project
+        working-directory: phone_app
+        run: |
+          test -f pubspec.yaml
+          flutter --version
+
+      - name: Generate Android project from current Flutter template
+        working-directory: phone_app
         run: flutter create --platforms=android --project-name ak1_phone_app .
 
       - name: Get packages
+        working-directory: phone_app
         run: flutter pub get
 
       - name: Analyze
+        working-directory: phone_app
         run: flutter analyze
 
       - name: Build release APK
+        working-directory: phone_app
         run: flutter build apk --release
 
       - name: Upload APK
@@ -45,3 +52,4 @@ jobs:
         with:
           name: ak1-release-apk
           path: phone_app/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
